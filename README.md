@@ -4,3 +4,8 @@ This repository includes the methods and procedures undertaken to design and dev
 and hardware development. The Robot Kit should be able to move forward, move backward, turn left, turn right, as well as move sideways to the left and right.
 
 Also aiming to remotely control the Robot Kit through WiFi using ESP8266 shield module for headless operation using a GUI.
+
+# Prerequisites  
+
+# Installation
+
