@@ -1,4 +1,4 @@
-# Arduino Robotic Arm With Meccanum Wheel
+# Arduino - MeArm Robotic Arm
 
 ## Overview
 
