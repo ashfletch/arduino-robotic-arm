@@ -19,8 +19,9 @@
  *      9                                         Yellow
  *      6                                                   Yellow
  */
-#include "meArm.h"
+#include "Arduino.h"
 #include <Servo.h>
+#include "MeArm.h"
 
 int basePin = 11;
 int shoulderPin = 10;
