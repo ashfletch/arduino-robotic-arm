@@ -1,31 +1,59 @@
-/**
- * Blink
- *
- * Turns on an LED on for one second,
- * then off for one second, repeatedly.
+/* meArm with joysticks - Ash Fletcher Novemebr 2021
+ * Using meArm Robot kit with joysticks
+ * Uses two analogue joystcks (two pots each)
+ * First stick moves gripper forwards, backwards, left and right
+ * Second stick moves gripper up, down, and closes and opens.
+ * 
+ * Sparkfun thumbstick breakout boards, oriented 'upside down'.
+ * 
+ * Pins:
+ * Arduino    Stick1    Stick2    Base   Shoulder  Elbow    Gripper
+ *    GND       GND       GND    Brown     Brown   Brown     Brown
+ *     5V       VCC       VCC      Red       Red     Red       Red
+ *     A0       HOR
+ *     A1       VER
+ *     A2                 HOR
+ *     A3                 VER
+ *     11                       Yellow
+ *     10                                 Yellow
+ *      9                                         Yellow
+ *      6                                                   Yellow
  */
 #include "Arduino.h"
+#include <Servo.h>
+#include "MeArm.h"
 
-// Set LED_BUILTIN if it is not defined by Arduino framework
-// #define LED_BUILTIN 13
+int basePin = 11;
+int shoulderPin = 10;
+int elbowPin = 9;
+int gripperPin = 6;
 
-void setup()
-{
-  // initialize LED digital pin as an output.
-  pinMode(LED_BUILTIN, OUTPUT);
+int xdirPin = 0;
+int ydirPin = 1;
+int zdirPin = 3;
+int gdirPin = 2;
+
+meArm arm;
+
+void setup() {
+  arm.begin(basePin, shoulderPin, elbowPin, gripperPin);
 }
 
-void loop()
-{
-  // turn the LED on (HIGH is the voltage level)
-  digitalWrite(LED_BUILTIN, HIGH);
-
-  // wait for a second
-  delay(1000);
-
-  // turn the LED off by making the voltage LOW
-  digitalWrite(LED_BUILTIN, LOW);
-
-   // wait for a second
-  delay(1000);
+void loop() {
+  float dx = map(analogRead(xdirPin), 0, 1023, -5.0, 5.0);
+  float dy = map(analogRead(ydirPin), 0, 1023, 5.0, -5.0);
+  float dz = map(analogRead(zdirPin), 0, 1023, 5.0, -5.0);
+  float dg = map(analogRead(gdirPin), 0, 1023, 5.0, -5.0);
+  if (abs(dx) < 1.5) dx = 0;
+  if (abs(dy) < 1.5) dy = 0;
+  if (abs(dz) < 1.5) dz = 0;
+  
+  if (!(dx == 0 && dy == 0 && dz == 0))
+    arm.goDirectlyTo(arm.getX() + dx, arm.getY() + dy, arm.getZ() + dz);
+  
+  if (dg < -3.0)
+    arm.closeGripper();
+  else if (dg > 3.0)
+    arm.openGripper();  
+  delay(50);
 }
