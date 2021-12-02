@@ -15,14 +15,18 @@ and hardware development. The Robotic Arm should be able to move in the respecti
 
 ## Equipment
 
-* Arduino UNO Rev3
-* MeArm Robotic Arm (Arduino Compatible)
-* *(Optional)* ESP8266 Wi-Fi Shield
+Hardware:
+
+  * Control Board Arduino UNO rev3 (with external 6V/2A power source)
+  * Robotic Arm – MeArm Robotic Arm Kit complete with 4 x servos
+  * *(Optional)* – ESP8266 Wi-Fi Shield OR HC-04 BLE Module Shield
+  * *(Optional)* – Sparkfun joysticks for manual operation
+  * Breadboard
 
 ## Prerequisites
-* Visual Studio Code
-* Platformio VSCode Extension
-* Arduino IDE
+  * Visual Studio Code
+  * Platformio VSCode Extension
+  * Arduino IDE
 
 ## Instructions
 
