@@ -2,16 +2,16 @@
 
 ## Overview
 
-This repository includes the methods and procedures undertaken to design and develop an Arduino controlled Robot Kit with Mecanum Wheel. This involves both software
-and hardware development. The Robot Kit should be able to:
+This repository includes all methods and procedures undertaken to design and develop an Arduino controlled Robotic Arm Kit using the MeArm product. This will involve both software
+and hardware development. The Robotic Arm should be able to move in the respective directions:
   - Move forwards
   - Move backwards
-  - Turn left
-  - Turn right
-  - Move left
-  - Move right
+  - Rotate left
+  - Rotate right
+  - Gripper Claw Open
+  - Gripper Claw Close
 
-Also aiming to remotely control the Robot Kit through WiFi using ESP8266 shield module for headless operation using a GUI.
+*(Optional)* Bonus Point if we can control the Robotic Arm remotely through Wi-Fi or BLE​
 
 ## Equipment
 
