@@ -1,222 +1,245 @@
-#include "MeArm.h"
+//This code has the mode select commented out as well as the slider code
+//The result is a faster joysticks code. There's a delay function that we use to
+// slow the movemement of the arm down.
+// Idle is also set at 100 which probably needs adjusting to stop the servos timing out so quickly.
 
-PCF8591 adc(I2C_DATA, I2C_CLOCK, PCF8591_ADDRESS);
-Marceau<14> marcel;
+#include <Servo.h> 
+#include <SPI.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_PCD8544.h>
 
-MeArm *MeArm::mainInstance;
+// Hardware SPI (faster, but must use certain hardware pins):
+// SCK is LCD serial clock (SCLK) - this is pin 13 on Arduino Uno
+// MOSI is LCD DIN - this is pin 11 on an Arduino Uno
+// pin 4 - Data/Command select (D/C)
+// pin 8 - LCD chip select (CS)
+// pin 7 - LCD reset (RST)
+Adafruit_PCD8544 display = Adafruit_PCD8544( 4, 8, 7);//updated MeArm Pins
+// Note with hardware SPI MISO and SS pins aren't used but will still be read
+// and written to during SPI transfer.  Be careful sharing these pins!
 
-MeArm::MeArm(){
-  mainInstance = this;
-  setServoPins(MEARM_DEFAULT_BASE_PIN, MEARM_DEFAULT_LOWER_PIN, MEARM_DEFAULT_UPPER_PIN, MEARM_DEFAULT_GRIP_PIN);
-  //Command name    Handler function   Returns immediately?
-  marcel.addCmd("moveJointsTo",     _moveJointsTo,    false);
-  marcel.addCmd("moveBaseTo",       _moveBaseTo,      false);
-  marcel.addCmd("moveLowerTo",      _moveLowerTo,     false);
-  marcel.addCmd("moveUpperTo",      _moveUpperTo,     false);
-  marcel.addCmd("moveGripTo",       _moveGripTo,      false);
-  marcel.addCmd("openGrip",         _openGrip,        false);
-  marcel.addCmd("closeGrip",        _closeGrip,       false);
-  marcel.addCmd("getServoState",    _getServoState,    true);
-  marcel.addCmd("version",          _version,          true);
-  marcel.addCmd("pause",            _empty,            true);
-  marcel.addCmd("resume",           _empty,            true);
-  marcel.addCmd("stop",             _empty,            true);
-#ifdef ESP8266
-  marcel.addCmd("updateFirmware",   _updateFirmware,   true);
-  marcel.addCmd("updateUI",         _updateUI,         true);
-#endif //ESP8266
+#define XPOS 0
+#define YPOS 1
+
+const int SERVOS = 4;
+const int ACC = 10; // the accurancy of the potentiometer value before idle starts counting
+const int CON = 60; // the value of the contrast for the LCD Screen Min is 0 and Max 120 if you can't see anything try increasing, if you see a black box try decreasing.
+int PIN[SERVOS], value[SERVOS], idle[SERVOS], currentAngle[SERVOS], MIN[SERVOS], MAX[SERVOS], INITANGLE[SERVOS], previousAngle[SERVOS],ANA[SERVOS];
+Servo myservo[SERVOS];
+//int modePin = 3;
+//int mode = LOW; // mode stores button push to change between Joysticks and Sliders
+
+#define LOGO16_GLCD_HEIGHT 16
+#define LOGO16_GLCD_WIDTH  16
+
+/*static const unsigned char PROGMEM logo16_glcd_bmp[] =
+{ B00000000, B11000000,
+  B00000001, B11000000,
+  B00000001, B11000000,
+  B00000011, B11100000,
+  B11110011, B11100000,
+  B11111110, B11111000,
+  B01111110, B11111111,
+  B00110011, B10011111,
+  B00011111, B11111100,
+  B00001101, B01110000,
+  B00011011, B10100000,
+  B00111111, B11100000,
+  B00111111, B11110000,
+  B01111100, B11110000,
+  B01110000, B01110000,
+  B00000000, B00110000 };
+*/
+
+void setup()   {
+  Serial.begin(57600);
+//  int mode = LOW; 
+//  pinMode(modePin, INPUT); // Enables button for Mode Change on Startup
+  display.begin();
+  // init done
+  // you can change the contrast around to adapt the display
+  // for the best viewing!
+  display.setContrast(CON);
+  display.display(); // show splashscreen
+  display.clearDisplay(); 
+  display.setTextSize(1);
+  display.setTextColor(BLACK);
+  display.setCursor(0,0);
+//  display.println("To Use Sliders");
+//  display.println("Hold Right Button");
+//  display.println("Else");
+  display.println("Greetings");
+  display.println("from Mime");
+  display.println("Industies ");
+  display.println(" ");
+  display.println("Code V1.0");
+  display.print("Contrast=");
+  display.println(CON);
+  display.display(); // show splashscreen
+  delay(5000);
+  display.clearDisplay();   // clears the screen and buffer
+  
+//  mode=digitalRead(modePin);
+  
+/*  if (mode == HIGH){
+    display.clearDisplay();   // clears the screen and buffer
+    display.println("Sliders");
+    display.println("Enabled");
+    display.display(); // push display to screen
+    delay(2000);
+  } else {
+    display.clearDisplay();   // clears the screen and buffer
+    display.println("Joysticks");
+    display.println("Enabled");
+    display.display(); // push display to screen
+    delay(2000);
+  }
+ */
+  //Middle Servo
+  PIN[0] = 10;
+  MIN[0] = 0;
+  MAX[0] = 180;
+  INITANGLE[0] = 90;
+  ANA[0] = 1;
+  //Left Side
+  PIN[1] = 9;
+  MIN[1] = 80; // This should bring the lever to just below 90deg to ground
+  MAX[1] = 180;
+  INITANGLE[1] = 152; // This should bring the lever parallel with the ground
+  ANA[1] = 0;
+  //Right Side
+  PIN[2] = 6;
+  MIN[2] = 25;
+  MAX[2] = 180;
+  INITANGLE[2] = 90;
+  ANA[2] = 2;
+  //Claw Servo
+  PIN[3] = 5;
+  MIN[3] = 0;
+  MAX[3] = 179;
+  INITANGLE[3] = 0;
+  ANA[3] = 3;
+  
+  for (int i = 0; i < SERVOS; i++){
+    myservo[i].attach(PIN[i]);
+    myservo[i].write(INITANGLE[i]);
+    value[i] = 0;
+    idle[i] = 0;
+    previousAngle[i]=INITANGLE[i];
+  }
 }
 
-void MeArm::generateAPName(char * name){
-  uint8_t mac[6];
-  WiFi.softAPmacAddress(mac);
-  sprintf(name, "MeArm-%02X%02X", mac[4], mac[5]);
-}
-
-void MeArm::begin(){
-  static char defaultAPName[11];
-  generateAPName(defaultAPName);
-  setupServos();
-  Serial.begin(230400);
-  marcel.enableSerial(Serial);
-  marcel.setDefaultAPName(defaultAPName);
-  marcel.setHostname("local.mearm.com");
-  marcel.enableWifi();
-  marcel.begin();
-  base.moveToCentre();
-  lower.moveToCentre();
-  upper.moveToCentre();
-  grip.moveToCentre();
-}
-
-void MeArm::loop(){
-  marcel.loop();
-  joystickControl();
-  sendDiscovery();
-  checkDone();
-  updateHandler();
-}
-
-void MeArm::joystickControl(){
-  uint8_t rawValues[4];
-  bool changed = false;
-  float scaledValue;
-  if(adcNextSample < millis()){
-    adcNextSample = millis() + 20;
-    adc.readSensors(rawValues);
-    for(uint8_t i=0; i< 4; i++){
-      scaledValue = (rawValues[i] - 128) / 128.0;
-      if(scaledValue > JOYSTICK_THRESHOLD || scaledValue < -JOYSTICK_THRESHOLD){
-        // remove the threshold
-        scaledValue -= (scaledValue < 0 ? -1 : 1) * JOYSTICK_THRESHOLD;
-        //move the servo
-        moveServoByPercent(i, scaledValue * 2);
-        changed = true;
+void loop() {
+  delay(15); // Delay function to slow movement of arm down
+//  if (mode == LOW){ 
+    for (int i = 0; i < SERVOS; i++){
+      value[i] = analogRead(ANA[i]);
+      currentAngle[i] = myservo[i].read();
+    
+      if (value[i] > 612) {
+        idle[i] = 0;
+      
+        if (currentAngle[i] < MAX[i]) ++currentAngle[i];
+        if (!myservo[i].attached()){
+          myservo[i].attach(PIN[i]);
+        }
+        myservo[i].write(currentAngle[i]);     
+      } else if (value[i] < 412) {
+      idle[i] = 0;
+      if (currentAngle[i] > MIN[i]) --currentAngle[i];
+      if (!myservo[i].attached()){
+        myservo[i].attach(PIN[i]);
       }
+      myservo[i].write(currentAngle[i]);    
+    } else {
+      ++idle[i];
     }
-  }
-  if(changed){
-    StaticJsonBuffer<500> outBuffer;
-    JsonObject& output = outBuffer.createObject();
-    JsonObject& msg = output.createNestedObject("msg");
-    msg["base"] = base.getCurrentAngle();
-    msg["lower"] = lower.getCurrentAngle();
-    msg["upper"] = upper.getCurrentAngle();
-    msg["grip"] = grip.getCurrentAngle();
-    marcel.notify("servoChange", output);
-  }
-}
-
-void MeArm::checkDone(){
-  if(base.ready() && lower.ready() && upper.ready() && grip.ready()){
-    marcel.cmdComplete();
-  }
-}
-
-void MeArm::sendDiscovery(){
-  if(nextDiscovery < millis()){
-    if(marcel.wifi.online){
-      send_discovery_request((uint32_t)WiFi.localIP(), marcel.settings.ap_ssid, "MeArm WiFi");
-      nextDiscovery = millis() + 30000;
-    }else{
-      nextDiscovery = millis() + 1000;
+    if (idle[i] > 100){
+      myservo[i].detach();
+      idle[i] = 0;
+    }  
+  }  
+//  } else {  for (int i = 0; i < SERVOS; i++){
+//    value[i] = analogRead(ANA[i]);
+//    currentAngle[i] = map(value[i],0,1023,MIN[i],MAX[i]);
+    
+//    if (currentAngle[i] > (previousAngle[i]+ACC)) {
+/*      idle[i] = 0;
+      
+      if (currentAngle[i] < MAX[i]);
+      if (!myservo[i].attached()){
+        myservo[i].attach(PIN[i]);
+      }
+      myservo[i].write(currentAngle[i]);
+      previousAngle[i]=currentAngle[i];     
+    } else if (currentAngle[i] < (previousAngle[i]-ACC)) {
+      idle[i] = 0;
+      if (currentAngle[i] > MIN[i]) --currentAngle[i];
+      if (!myservo[i].attached()){
+        myservo[i].attach(PIN[i]);
+      }
+      myservo[i].write(currentAngle[i]);
+      previousAngle[i]=currentAngle[i];     
+    } else {
+      ++idle[i];
     }
+    if (idle[i] > 100){
+      myservo[i].detach();
+      idle[i] = 0;
+    }  
+  }  
   }
+*/  
+//  Serial.print(currentAngle[0]);
+//  Serial.print(" ; ");
+//  Serial.print(currentAngle[1]);
+//  Serial.print(" ; ");
+//  Serial.print(currentAngle[2]);
+//  Serial.print(" ; ");
+//  Serial.println(currentAngle[3]);
+  
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(BLACK);
+  display.setCursor(0,0);
+  display.println("These are the current");
+  display.println("servo angles.");
+  display.print(currentAngle[0]);
+  display.print(";");
+  display.print(currentAngle[1]);
+  display.print(";");
+  display.print(currentAngle[2]);
+  display.print(";");
+  display.println(currentAngle[3]);
+  display.println("Mime.co.uk");
+//  display.println(idle[1]);
+  
+//  Display Potentiometer Values on LCD (Slows MeArm Down too)
+//  display.print(value[0]);
+//  display.print(";");
+//  display.print(value[1]);
+//  display.print(";");
+//  display.print(value[2]);
+//  display.print(";");
+//  display.println(value[3]);
+  
+
+  display.display();
+  
 }
 
-void MeArm::moveServoByPercent(uint8_t servo, float percent){
-  switch(servo){
-    case BASE_SERVO:
-      base.moveByPercent(percent);
-      break;
-    case LOWER_SERVO:
-      lower.moveByPercent(percent);
-      break;
-    case UPPER_SERVO:
-      upper.moveByPercent(percent);
-      break;
-    case GRIP_SERVO:
-      grip.moveByPercent(percent);
-      break;
-  }
-}
 
-void MeArm::setServoPins(uint8_t _basePin, uint8_t _lowerPin, uint8_t _upperPin, uint8_t _gripPin){
-  basePin = _basePin;
-  lowerPin = _lowerPin;
-  upperPin = _upperPin;
-  gripPin = _gripPin;
-}
 
-void MeArm::setupServos(){
-  base.begin(basePin, 0, 180, 90);
-  lower.begin(lowerPin, 0, 90, 0);
-  upper.begin(upperPin, 0, 135, 0);
-  grip.begin(gripPin, 90, 180, 90);
-}
-
-void MeArm::getServoState(ArduinoJson::JsonObject &input, ArduinoJson::JsonObject &output){
-  JsonObject& msg = output.createNestedObject("msg");
-  msg["base"] = base.getCurrentAngle();
-  msg["lower"] = lower.getCurrentAngle();
-  msg["upper"] = upper.getCurrentAngle();
-  msg["grip"] = grip.getCurrentAngle();
-}
-
-#ifdef ESP8266
-void MeArm::updateFirmware(){
-  if(marcel.wifi.online){
-    ESPhttpUpdate.rebootOnUpdate(true);
-    if(ESPhttpUpdate.update("http://downloads.mime.co.uk/MeArm/WiFi/v1/mirobot-latest.bin", "") != HTTP_UPDATE_OK){
-      Serial.println(ESPhttpUpdate.getLastErrorString());
-    }
-  }
-}
-
-void MeArm::updateUI(){
-  if(marcel.wifi.online){
-    ESPhttpUpdate.rebootOnUpdate(false);
-    if(ESPhttpUpdate.updateSpiffs("http://downloads.mime.co.uk/MeArm/WiFi/v1/ui-latest.bin", "") != HTTP_UPDATE_OK){
-      Serial.println(ESPhttpUpdate.getLastErrorString());
-    }
-  }
-}
-
-void MeArm::updateHandler(){
-  if(_updateFWflag){
-    _updateFWflag = false;
-    updateFirmware();
-  }
-  if(_updateUIflag){
-    _updateUIflag = false;
-    updateUI();
-  }
-}
-#endif //ESP8266
-
-static void _moveJointsTo(ArduinoJson::JsonObject &input, ArduinoJson::JsonObject &output){
-}
-
-static void _openGrip(ArduinoJson::JsonObject &input, ArduinoJson::JsonObject &output){
-  MeArm::mainInstance->grip.moveToAngle(0);
-}
-
-static void _closeGrip(ArduinoJson::JsonObject &input, ArduinoJson::JsonObject &output){
-  MeArm::mainInstance->grip.moveToAngle(90);
-}
-
-static void _moveBaseTo(ArduinoJson::JsonObject &input, ArduinoJson::JsonObject &output){
-  MeArm::mainInstance->base.moveToAngle(atoi(input["arg"].asString()));
-}
-
-static void _moveLowerTo(ArduinoJson::JsonObject &input, ArduinoJson::JsonObject &output){
-  MeArm::mainInstance->lower.moveToAngle(atoi(input["arg"].asString()));
-}
-
-static void _moveUpperTo(ArduinoJson::JsonObject &input, ArduinoJson::JsonObject &output){
-  MeArm::mainInstance->upper.moveToAngle(atoi(input["arg"].asString()));
-}
-
-static void _moveGripTo(ArduinoJson::JsonObject &input, ArduinoJson::JsonObject &output){
-  MeArm::mainInstance->grip.moveToAngle(atoi(input["arg"].asString()));
-}
-
-static void _getServoState(ArduinoJson::JsonObject &input, ArduinoJson::JsonObject &output){
-  MeArm::mainInstance->getServoState(input, output);
-}
-
-static void _version(ArduinoJson::JsonObject &input, ArduinoJson::JsonObject &output){
-  output["msg"] = VERSION;
-}
-
-static void _empty(ArduinoJson::JsonObject &input, ArduinoJson::JsonObject &output){
-}
-
-#ifdef ESP8266
-static void _updateFirmware(ArduinoJson::JsonObject &inJson, ArduinoJson::JsonObject &outJson){
-  MeArm::mainInstance->_updateFWflag = true;
-}
-static void _updateUI(ArduinoJson::JsonObject &inJson, ArduinoJson::JsonObject &outJson){
-  MeArm::mainInstance->_updateUIflag = true;
-}
-#endif //ESP8266
+/*********************************************************************
+This is an example sketch for our Monochrome Nokia 5110 LCD Displays
+  Pick one up today in the adafruit shop!
+  ------> http://www.adafruit.com/products/338
+These displays use SPI to communicate, 4 or 5 pins are required to
+interface
+Adafruit invests time and resources providing this open source code,
+please support Adafruit and open-source hardware by purchasing
+products from Adafruit!
+Written by Limor Fried/Ladyada  for Adafruit Industries.
+BSD license, check license.txt for more information
+All text above, and the splash screen must be included in any redistribution
+*********************************************************************/
