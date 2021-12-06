@@ -19,6 +19,7 @@
  *      9                                         Yellow
  *      6                                                   Yellow
  */
+#include <Arduino.h>
 #include "meArm.h"
 #include <Servo.h>
 
