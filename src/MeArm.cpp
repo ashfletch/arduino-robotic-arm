@@ -14,7 +14,7 @@
 
 #include <Arduino.h>
 #include <Servo.h>
-#include "MeArm.h"
+#include <meArm.h>
 #include <fk.h>
 #include <ik.h>
 
