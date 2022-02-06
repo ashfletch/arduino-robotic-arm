@@ -11,7 +11,7 @@ and hardware development. The Robotic Arm should be able to move in the respecti
   - Gripper Claw Open
   - Gripper Claw Close
 
-*(Optional)* Bonus Point if we can control the Robotic Arm remotely through Wi-Fi or BLE​
+For project progression, we are aiming to be able to control the meArm manually using 2 x Sprakfun joysticks. *(Optional)* Bonus Point if we can control the Robotic Arm remotely through Wi-Fi or BLE​
 
 ## Equipment
 
