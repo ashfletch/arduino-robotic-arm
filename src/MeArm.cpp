@@ -1,6 +1,6 @@
-/* meArm IK test - York Hackspace May 2014
+/* meArm R.A.T test - Team Design Project Dec 2021
  * Test applying Nick Moriarty's Inverse Kinematics solver
- * to Phenoptix' meArm robot arm, to walk a specified path.
+ * to Phenoptix' meArm robotic arm, to walk a defined path.
  *
  * Pins:
  * Arduino    Base   Shoulder  Elbow    Gripper
@@ -10,40 +10,61 @@
  *     10             Orange
  *      9                     Orange
  *      6                               Orange
- */
+*/
 
-#include <Arduino.h>
 #include <Servo.h>
-#include <meArm.h>
-#include <fk.h>
-#include <ik.h>
+#include "ik.h"
+#include "meArm.h"
 
-int basePin = 11;
-int shoulderPin = 10;
-int elbowPin = 9;
-int gripperPin = 6;
+Servo base, claw, up_down, front_back;
+int angle = 0;
+
+//digital pins
+int basePin = 9;//red wire left-right
+int shoulderPin = 6; //orange wire up/down shoulder
+int elbowPin = 7;//front/back blue wire elbow
+int gripperPin = 8;//purple wire, gripper/claw
+
+
+//analogue pins
+int xdirPin = 1;
+int ydirPin = 0;
+int zdirPin = 3;
+int gdirPin = 2;
 
 meArm arm;
 
-void setup() {
+void setup() 
+{ 
   arm.begin(basePin, shoulderPin, elbowPin, gripperPin);
 }
 
-void loop() {
-  //Clap - so it's obvious we're at this part of the routine
-  arm.openGripper();
-  arm.closeGripper();
-  arm.openGripper();
-  arm.closeGripper();
-  arm.openGripper();
-  delay(500);
-  //Go up and left to grab something
-  arm.gotoPoint(-80,100,140); 
-  arm.closeGripper();
-  //Go down, forward and right to drop it
-  arm.gotoPoint(70,200,10);
-  arm.openGripper();
-  //Back to start position
-  arm.gotoPoint(0,100,50);
-  delay(2000);
+void loop()
+{
+  float dx = map(analogRead(xdirPin), 0, 1023, -5.0, 5.0);
+  float dy = map(analogRead(ydirPin), 0, 1023, 5.0, -5.0);
+  float dz = map(analogRead(zdirPin), 0, 1023, 5.0, -5.0);
+  float dg = map(analogRead(gdirPin), 0, 1023, 5.0, -5.0);
+  if (abs(dx) < 1.5) dx = 0;
+  if (abs(dy) < 1.5) dy = 0;
+  if (abs(dz) < 1.5) dz = 0;
+  if(abs(dg) < 1.5) dg = 0;
+
+  if (!(dx == 0 && dy == 0 && dz == 0))
+    arm.goDirectlyTo(arm.getX() + (dx * 0.66f), arm.getY() + (dy * 0.66f), arm.getZ() + (dz * 0.66f));
+
+  if (dg < -3.0)
+  {
+    Serial.print("claw is closing");
+      arm.closeGripper();
+  }
+  else if (dg > 3.0)
+    arm.openGripper();  
+    
+  delay(50);
+}
+
+void CalibrateServos()
+{
+  
 }
